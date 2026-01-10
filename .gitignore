@@ -20,6 +20,8 @@ $RECYCLE.BIN/
 *.code-workspace
 
 ### Node.js ###
+nodemodules
+node_module
 node_modules/
 npm-debug.log*
 yarn-debug.log*
