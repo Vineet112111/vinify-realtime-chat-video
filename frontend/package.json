@@ -10,10 +10,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@stream-io/video-react-sdk": "^1.31.0",
+    "@tanstack/react-query": "^5.90.16",
+    "axios": "^1.13.2",
+    "lucide-react": "^0.562.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hot-toast": "^2.6.0",
-    "react-router": "^7.12.0"
+    "react-router": "^7.12.0",
+    "stream-chat": "^9.28.0",
+    "stream-chat-react": "^13.13.1",
+    "vinify": "file:..",
+    "zustand": "^5.0.9"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
