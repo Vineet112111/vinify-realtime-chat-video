@@ -8,6 +8,7 @@ import {
   ParticipantView,
   useCallStateHooks,
   CallingState,
+  StreamTheme,
 } from "@stream-io/video-react-sdk";
 import "@stream-io/video-react-sdk/dist/css/styles.css";
 import toast from "react-hot-toast";
@@ -47,6 +48,17 @@ const startRingbackTone = () => {
     osc1.start();
     osc2.start();
 
+    if (ctx.state === "suspended") {
+      ctx.resume().catch(err => console.log("Failed to resume ctx initially:", err));
+    }
+
+    const resumeOnInteraction = () => {
+      if (ctx.state === "suspended") {
+        ctx.resume().catch(err => console.log("Failed to resume ctx on interaction:", err));
+      }
+    };
+    window.addEventListener("click", resumeOnInteraction);
+
     // 2 seconds on, 4 seconds off ringing cadence
     let ringInterval = setInterval(() => {
       // fade out
@@ -60,6 +72,7 @@ const startRingbackTone = () => {
 
     return () => {
       clearInterval(ringInterval);
+      window.removeEventListener("click", resumeOnInteraction);
       try {
         osc1.stop();
         osc2.stop();
@@ -112,13 +125,38 @@ const CallPage = () => {
           await callInstance.join();
         }
 
+        if (!active) return;
+
+        // Explicitly enable local camera and microphone tracks with graceful error handling
+        try {
+          await callInstance.camera.enable();
+        } catch (camErr) {
+          if (active) {
+            console.warn("Camera failed to enable:", camErr);
+            toast.error("Camera access failed or blocked.");
+          }
+        }
+
+        if (!active) return;
+
+        try {
+          await callInstance.microphone.enable();
+        } catch (micErr) {
+          if (active) {
+            console.warn("Microphone failed to enable:", micErr);
+            toast.error("Microphone access failed or blocked.");
+          }
+        }
+
         if (active) {
           setCall(callInstance);
         }
       } catch (error) {
-        console.error("Error joining/creating call:", error);
-        toast.error("Could not connect to video call");
-        navigate("/");
+        if (active) {
+          console.error("Error joining/creating call:", error);
+          toast.error("Could not connect to video call");
+          navigate("/");
+        }
       } finally {
         if (active) setIsConnecting(false);
       }
@@ -140,7 +178,9 @@ const CallPage = () => {
     <div className="h-screen bg-slate-950 flex flex-col items-center justify-center text-white relative overflow-hidden">
       {videoClient && call ? (
         <StreamCall call={call}>
-          <CallContent isRingingMode={isRingingMode} />
+          <StreamTheme>
+            <CallContent isRingingMode={isRingingMode} />
+          </StreamTheme>
         </StreamCall>
       ) : (
         <div className="text-center p-6 space-y-4">
@@ -245,8 +285,8 @@ const CallContent = ({ isRingingMode }) => {
       {/* Modern Participant Videos Grid */}
       <div className="w-full max-w-5xl h-full flex flex-col md:grid md:grid-cols-2 gap-4 items-center justify-center py-16 overflow-y-auto">
         {participants.map((p) => {
-          const isMicEnabled = p.isMicrophoneEnabled;
-          const isCamEnabled = p.isVideoEnabled;
+          const isMicEnabled = p.audioEnabled;
+          const isCamEnabled = p.videoEnabled;
 
           return (
             <div 

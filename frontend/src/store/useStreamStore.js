@@ -96,14 +96,21 @@ export const useStreamStore = create((set, get) => ({
 
           const notificationsEnabled = get().notificationsEnabled;
           if (notificationsEnabled && event.message?.user?.id !== authUser._id) {
-            const sound = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav");
-            sound.play().catch(err => console.log("Sound error:", err));
+            const isNotOnActiveChat = window.location.pathname !== `/chat/${event.message?.user?.id}`;
+            if (document.hidden || isNotOnActiveChat) {
+              const sound = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav");
+              sound.play().catch(err => console.log("Sound error:", err));
 
-            if (document.hidden && Notification.permission === "granted") {
-              new Notification(`New message from ${event.message?.user?.name || "Friend"}`, {
-                body: event.message?.text || "Sent an attachment",
-                icon: event.message?.user?.image || "/logo.png",
-              });
+              if (Notification.permission === "granted") {
+                const notification = new Notification(`New message from ${event.message?.user?.name || "Friend"}`, {
+                  body: event.message?.text || "Sent an attachment",
+                  icon: event.message?.user?.image || "/logo.png",
+                });
+                notification.onclick = () => {
+                  window.focus();
+                  window.location.href = `/chat/${event.message?.user?.id}`;
+                };
+              }
             }
           }
         }

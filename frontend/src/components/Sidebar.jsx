@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router";
 import useAuthUser from "../hooks/useAuthUser";
-import { BellIcon, HomeIcon, ShipWheelIcon, UsersIcon, SettingsIcon } from "lucide-react";
+import { BellIcon, HomeIcon, ShipWheelIcon, UsersIcon, SettingsIcon, MessageSquareIcon } from "lucide-react";
 import { useStreamStore } from "../store/useStreamStore";
 import { useQuery } from "@tanstack/react-query";
 import { getFriendRequests } from "../lib/api";
@@ -42,20 +42,30 @@ const Sidebar = () => {
         </Link>
 
         <Link
-          to="/friends"
+          to="/chat"
           className={`btn btn-ghost justify-between w-full px-3 normal-case ${
-            currentPath === "/friends" ? "btn-active" : ""
+            currentPath.startsWith("/chat") ? "btn-active" : ""
           }`}
         >
           <div className="flex items-center gap-3">
-            <UsersIcon className="size-5 text-base-content opacity-70" />
-            <span>Friends</span>
+            <MessageSquareIcon className="size-5 text-base-content opacity-70" />
+            <span>Chats</span>
           </div>
           {unreadMessageCount > 0 && (
             <span className="badge badge-primary badge-sm text-xs font-semibold">
               {unreadMessageCount}
             </span>
           )}
+        </Link>
+
+        <Link
+          to="/friends"
+          className={`btn btn-ghost justify-start w-full gap-3 px-3 normal-case ${
+            currentPath === "/friends" ? "btn-active" : ""
+          }`}
+        >
+          <UsersIcon className="size-5 text-base-content opacity-70" />
+          <span>Friends</span>
         </Link>
 
         <Link

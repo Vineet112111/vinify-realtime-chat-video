@@ -40,6 +40,13 @@ const App = () => {
   useEffect(() => {
     if (authUser && authUser.isOnboarded && tokenData?.token) {
       initStream(authUser, tokenData.token, queryClient);
+
+      // Request notification permission proactively
+      if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission().then((permission) => {
+          console.log("Notification permission response:", permission);
+        });
+      }
     } else if (!authUser) {
       disconnectStream();
     }

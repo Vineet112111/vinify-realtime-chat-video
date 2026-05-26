@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router";
 import useAuthUser from "../hooks/useAuthUser";
-import { BellIcon, LogOutIcon, ShipWheelIcon } from "lucide-react";
+import { BellIcon, LogOutIcon, ShipWheelIcon, MessageSquareIcon } from "lucide-react";
 import ThemeSelector from "./ThemeSelector";
 import useLogout from "../hooks/useLogout";
 import { useStreamStore } from "../store/useStreamStore";
@@ -11,7 +11,7 @@ const Navbar = () => {
   const { authUser } = useAuthUser();
   const location = useLocation();
   const isChatPage = location.pathname?.startsWith("/chat");
-  const { setProfileModalOpen } = useStreamStore();
+  const { setProfileModalOpen, unreadMessageCount } = useStreamStore();
 
   const { data: friendRequests } = useQuery({
     queryKey: ["friendRequests"],
@@ -40,8 +40,19 @@ const Navbar = () => {
           )}
 
           <div className="flex items-center gap-3 sm:gap-4 ml-auto">
+            <Link to={"/chat"}>
+              <button className="btn btn-ghost btn-circle relative" title="Chats">
+                <MessageSquareIcon className="h-6 w-6 text-base-content opacity-70" />
+                {unreadMessageCount > 0 && (
+                  <span className="badge badge-primary badge-xs absolute top-1.5 right-1.5 p-1 font-bold text-[10px]">
+                    {unreadMessageCount}
+                  </span>
+                )}
+              </button>
+            </Link>
+
             <Link to={"/notifications"}>
-              <button className="btn btn-ghost btn-circle relative">
+              <button className="btn btn-ghost btn-circle relative" title="Friend Requests">
                 <BellIcon className="h-6 w-6 text-base-content opacity-70" />
                 {incomingCount > 0 && (
                   <span className="badge badge-secondary badge-xs absolute top-1.5 right-1.5 p-1 font-bold text-[10px]">

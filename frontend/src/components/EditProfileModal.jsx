@@ -249,7 +249,13 @@ const EditProfileModal = () => {
                 <input 
                   type="checkbox" 
                   checked={notificationsEnabled}
-                  onChange={(e) => setNotificationsEnabled(e.target.checked)}
+                  onChange={async (e) => {
+                    const enabled = e.target.checked;
+                    setNotificationsEnabled(enabled);
+                    if (enabled && "Notification" in window && Notification.permission === "default") {
+                      await Notification.requestPermission();
+                    }
+                  }}
                   className="toggle toggle-primary"
                 />
               </label>

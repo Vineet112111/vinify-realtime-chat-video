@@ -1,12 +1,78 @@
 import { useCalls, CallingState } from "@stream-io/video-react-sdk";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router";
 import { PhoneIcon, PhoneOffIcon } from "lucide-react";
+import toast from "react-hot-toast";
+
+// Web Audio API Ringtone Generator
+const startPhoneRingTone = () => {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return null;
+    const ctx = new AudioContext();
+    
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    
+    // modulated phone ring frequencies
+    osc1.frequency.setValueAtTime(400, ctx.currentTime);
+    osc2.frequency.setValueAtTime(450, ctx.currentTime);
+    
+    osc1.connect(gainNode);
+    osc2.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    gainNode.gain.setValueAtTime(0.08, ctx.currentTime);
+    
+    osc1.start();
+    osc2.start();
+
+    if (ctx.state === "suspended") {
+      ctx.resume().catch(err => console.log("Failed to resume ctx initially:", err));
+    }
+
+    const resumeOnInteraction = () => {
+      if (ctx.state === "suspended") {
+        ctx.resume().catch(err => console.log("Failed to resume ctx on interaction:", err));
+      }
+    };
+    window.addEventListener("click", resumeOnInteraction);
+
+    // ring cadence: 1.2s on, 1.8s silence
+    let isRinging = true;
+    let ringInterval = setInterval(() => {
+      if (isRinging) {
+        gainNode.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 1.2);
+      } else {
+        gainNode.gain.setValueAtTime(0.08, ctx.currentTime);
+      }
+      isRinging = !isRinging;
+    }, 1500);
+
+    return () => {
+      clearInterval(ringInterval);
+      window.removeEventListener("click", resumeOnInteraction);
+      try {
+        osc1.stop();
+        osc2.stop();
+        ctx.close();
+      } catch (e) {}
+    };
+  } catch (error) {
+    console.error("Audio Context failed:", error);
+    return null;
+  }
+};
 
 const IncomingCallModal = () => {
   const calls = useCalls();
   const navigate = useNavigate();
-  const [ringingSound, setRingingSound] = useState(null);
+  const [stopRinging, setStopRinging] = useState(null);
+
+  const wasRingingRef = useRef(false);
+  const acceptedOrRejectedRef = useRef(false);
+  const callerNameRef = useRef("");
 
   // Find an incoming call in RINGING state
   const incomingCall = calls.find(
@@ -14,37 +80,48 @@ const IncomingCallModal = () => {
   );
 
   useEffect(() => {
-    let audio = null;
+    let stopFn = null;
     if (incomingCall) {
-      // Ring sound
-      audio = new Audio("https://assets.mixkit.co/active_storage/sfx/1359/1359-84.wav");
-      audio.loop = true;
-      audio.play().catch((err) => console.log("Sound autoplay blocked:", err));
-      setRingingSound(audio);
+      wasRingingRef.current = true;
+      acceptedOrRejectedRef.current = false;
+      callerNameRef.current = incomingCall.state.createdBy?.name || "A friend";
 
-      // Ask for browser notification permission if not asked
-      if (Notification.permission === "default") {
-        Notification.requestPermission();
-      }
+      // Start ringing sound
+      stopFn = startPhoneRingTone();
+      setStopRinging(() => stopFn);
       
       // Trigger native notification
       if (Notification.permission === "granted") {
-        new Notification("Incoming Call", {
-          body: `${incomingCall.state.createdBy?.name || "A friend"} is calling you...`,
+        const notification = new Notification("Incoming Call", {
+          body: `${callerNameRef.current} is calling you...`,
           icon: incomingCall.state.createdBy?.image || "/default-avatar.png",
         });
+        notification.onclick = () => {
+          window.focus();
+        };
       }
     } else {
-      if (ringingSound) {
-        ringingSound.pause();
-        setRingingSound(null);
+      if (stopRinging) {
+        stopRinging();
+        setStopRinging(null);
       }
+
+      // Check if this was a missed call
+      if (wasRingingRef.current && !acceptedOrRejectedRef.current) {
+        console.log("Missed call detected!");
+        if (Notification.permission === "granted") {
+          new Notification("Missed Call", {
+            body: `You missed a video call from ${callerNameRef.current}`,
+            icon: "/default-avatar.png",
+          });
+        }
+        toast.error(`Missed video call from ${callerNameRef.current}`);
+      }
+      wasRingingRef.current = false;
     }
 
     return () => {
-      if (audio) {
-        audio.pause();
-      }
+      if (stopFn) stopFn();
     };
   }, [incomingCall]);
 
@@ -54,8 +131,10 @@ const IncomingCallModal = () => {
   const callerImage = incomingCall.state.createdBy?.image || "https://api.dicebear.com/7.x/identicon/png?seed=default";
 
   const handleAccept = async () => {
-    if (ringingSound) {
-      ringingSound.pause();
+    acceptedOrRejectedRef.current = true;
+    if (stopRinging) {
+      stopRinging();
+      setStopRinging(null);
     }
     try {
       await incomingCall.join();
@@ -66,8 +145,10 @@ const IncomingCallModal = () => {
   };
 
   const handleReject = async () => {
-    if (ringingSound) {
-      ringingSound.pause();
+    acceptedOrRejectedRef.current = true;
+    if (stopRinging) {
+      stopRinging();
+      setStopRinging(null);
     }
     try {
       await incomingCall.leave({ reject: true, reason: "decline" });
