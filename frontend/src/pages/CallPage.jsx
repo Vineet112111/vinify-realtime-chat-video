@@ -395,7 +395,7 @@ const CustomCallControls = () => {
   };
 
   return (
-    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/80 border border-white/10 backdrop-blur-lg px-6 py-3.5 rounded-2xl flex items-center gap-6 shadow-2xl z-20">
+    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/80 border border-white/10 backdrop-blur-lg px-4 sm:px-6 py-2.5 sm:py-3.5 rounded-2xl flex items-center gap-4 sm:gap-6 shadow-2xl z-20">
       <button 
         onClick={toggleMic} 
         className={`btn btn-circle btn-sm sm:btn-md ${isMicMuted ? 'btn-error text-white' : 'btn-neutral'} transition-all`}

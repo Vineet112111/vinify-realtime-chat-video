@@ -40,7 +40,7 @@ const NotificationsPage = () => {
                   Friend Requests
                   <span className="badge badge-primary ml-2">{incomingRequests.length}</span>
                 </h2>
-
+ 
                 <div className="space-y-3">
                   {incomingRequests.map((request) => (
                     <div
@@ -48,26 +48,26 @@ const NotificationsPage = () => {
                       className="card bg-base-200 shadow-sm hover:shadow-md transition-shadow"
                     >
                       <div className="card-body p-4">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                           <div className="flex items-center gap-3">
-                            <div className="avatar w-14 h-14 rounded-full bg-base-300">
-                              <img src={request.sender.profilePic} alt={request.sender.fullName} />
+                            <div className="avatar size-12 sm:size-14 rounded-full overflow-hidden bg-base-300">
+                              <img src={request.sender.profilePic} alt={request.sender.fullName} className="object-cover" />
                             </div>
-                            <div>
-                              <h3 className="font-semibold">{request.sender.fullName}</h3>
+                            <div className="min-w-0">
+                              <h3 className="font-semibold truncate">{request.sender.fullName}</h3>
                               <div className="flex flex-wrap gap-1.5 mt-1">
-                                <span className="badge badge-secondary badge-sm">
+                                <span className="badge badge-secondary badge-xs sm:badge-sm">
                                   Native: {request.sender.nativeLanguage}
                                 </span>
-                                <span className="badge badge-outline badge-sm">
+                                <span className="badge badge-outline badge-xs sm:badge-sm">
                                   Learning: {request.sender.learningLanguage}
                                 </span>
                               </div>
                             </div>
                           </div>
-
+ 
                           <button
-                            className="btn btn-primary btn-sm"
+                            className="btn btn-primary btn-sm w-full sm:w-auto"
                             onClick={() => acceptRequestMutation(request._id)}
                             disabled={isPending}
                           >
@@ -80,7 +80,7 @@ const NotificationsPage = () => {
                 </div>
               </section>
             )}
-
+ 
             {/* ACCEPTED REQS NOTIFICATONS */}
             {acceptedRequests.length > 0 && (
               <section className="space-y-4">
@@ -88,31 +88,34 @@ const NotificationsPage = () => {
                   <BellIcon className="h-5 w-5 text-success" />
                   New Connections
                 </h2>
-
+ 
                 <div className="space-y-3">
                   {acceptedRequests.map((notification) => (
                     <div key={notification._id} className="card bg-base-200 shadow-sm">
                       <div className="card-body p-4">
-                        <div className="flex items-start gap-3">
-                          <div className="avatar mt-1 size-10 rounded-full">
-                            <img
-                              src={notification.recipient.profilePic}
-                              alt={notification.recipient.fullName}
-                            />
+                        <div className="flex flex-col sm:flex-row sm:items-start gap-3 justify-between">
+                          <div className="flex items-start gap-3">
+                            <div className="avatar mt-0.5 size-10 rounded-full overflow-hidden">
+                              <img
+                                src={notification.recipient.profilePic}
+                                alt={notification.recipient.fullName}
+                                className="object-cover"
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <h3 className="font-semibold truncate">{notification.recipient.fullName}</h3>
+                              <p className="text-sm my-1">
+                                {notification.recipient.fullName} accepted your friend request
+                              </p>
+                              <p className="text-xs flex items-center opacity-70">
+                                <ClockIcon className="h-3 w-3 mr-1" />
+                                Recently
+                              </p>
+                            </div>
                           </div>
-                          <div className="flex-1">
-                            <h3 className="font-semibold">{notification.recipient.fullName}</h3>
-                            <p className="text-sm my-1">
-                              {notification.recipient.fullName} accepted your friend request
-                            </p>
-                            <p className="text-xs flex items-center opacity-70">
-                              <ClockIcon className="h-3 w-3 mr-1" />
-                              Recently
-                            </p>
-                          </div>
-                          <div className="badge badge-success">
-                            <MessageSquareIcon className="h-3 w-3 mr-1" />
-                            New Friend
+                          <div className="badge badge-success self-start sm:self-center gap-1">
+                            <MessageSquareIcon className="h-3 w-3" />
+                            <span>New Friend</span>
                           </div>
                         </div>
                       </div>
