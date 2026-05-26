@@ -6,9 +6,10 @@ import {
   StreamCall,
   StreamVideo,
   ParticipantView,
-  useCallStateHooks,
   CallingState,
   StreamTheme,
+  useCall,
+  useCallStateHooks,
 } from "@stream-io/video-react-sdk";
 import "@stream-io/video-react-sdk/dist/css/styles.css";
 import toast from "react-hot-toast";
@@ -96,6 +97,8 @@ const CallPage = () => {
   const { authUser, isLoading: authLoading } = useAuthUser();
   const [call, setCall] = useState(null);
   const [isConnecting, setIsConnecting] = useState(true);
+  const [cameraError, setCameraError] = useState(null);
+  const [micError, setMicError] = useState(null);
 
   useEffect(() => {
     if (!videoClient || !callId || !authUser) return;
@@ -133,6 +136,7 @@ const CallPage = () => {
         } catch (camErr) {
           if (active) {
             console.warn("Camera failed to enable:", camErr);
+            setCameraError(camErr.name || camErr.message || "Failed");
             toast.error("Camera access failed or blocked.");
           }
         }
@@ -144,6 +148,7 @@ const CallPage = () => {
         } catch (micErr) {
           if (active) {
             console.warn("Microphone failed to enable:", micErr);
+            setMicError(micErr.name || micErr.message || "Failed");
             toast.error("Microphone access failed or blocked.");
           }
         }
@@ -179,7 +184,7 @@ const CallPage = () => {
       {videoClient && call ? (
         <StreamCall call={call}>
           <StreamTheme>
-            <CallContent isRingingMode={isRingingMode} />
+            <CallContent isRingingMode={isRingingMode} cameraError={cameraError} micError={micError} />
           </StreamTheme>
         </StreamCall>
       ) : (
@@ -194,7 +199,7 @@ const CallPage = () => {
   );
 };
 
-const CallContent = ({ isRingingMode }) => {
+const CallContent = ({ isRingingMode, cameraError, micError }) => {
   const { useCallCallingState, useCallMembers, useParticipants } = useCallStateHooks();
   const callingState = useCallCallingState();
   const members = useCallMembers();
@@ -236,6 +241,17 @@ const CallContent = ({ isRingingMode }) => {
   const recipientMember = members.find((m) => m.user.id !== authUser?._id);
   const recipientName = recipientMember?.user?.name || "User";
   const recipientImage = recipientMember?.user?.image || "https://api.dicebear.com/7.x/identicon/png?seed=default";
+
+  // Render loading state while connecting (JOINING)
+  if (callingState === CallingState.JOINING) {
+    return (
+      <div className="flex flex-col items-center justify-center space-y-4 animate-fade-in p-4 text-center">
+        <span className="loading loading-spinner loading-lg text-primary animate-spin" />
+        <h2 className="text-xl font-bold">Connecting Call...</h2>
+        <p className="text-sm opacity-60">Setting up secure media channels</p>
+      </div>
+    );
+  }
 
   // Render dialing screen if not connected yet
   if (callingState === CallingState.RINGING) {
@@ -287,6 +303,7 @@ const CallContent = ({ isRingingMode }) => {
         {participants.map((p) => {
           const isMicEnabled = p.audioEnabled;
           const isCamEnabled = p.videoEnabled;
+          const isLocal = p.userId === authUser?._id;
 
           return (
             <div 
@@ -296,11 +313,16 @@ const CallContent = ({ isRingingMode }) => {
               {isCamEnabled ? (
                 <ParticipantView participant={p} className="w-full h-full object-cover" />
               ) : (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 text-slate-400">
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 text-slate-400 p-4 text-center">
                   <div className="avatar size-16 rounded-full overflow-hidden mb-2 ring-2 ring-white/10">
                     <img src={p.image || "https://api.dicebear.com/7.x/identicon/png?seed=default"} alt={p.name} className="object-cover w-full h-full" />
                   </div>
-                  <span className="text-xs opacity-75">{p.name}</span>
+                  <span className="text-xs font-semibold">{p.name}</span>
+                  {isLocal && cameraError && (
+                    <span className="text-[10px] text-error mt-1.5 bg-error/10 border border-error/20 px-2 py-0.5 rounded">
+                      Camera: {cameraError === "NotReadableError" ? "In use by another app" : "Not accessible / Blocked"}
+                    </span>
+                  )}
                 </div>
               )}
 
@@ -309,6 +331,11 @@ const CallContent = ({ isRingingMode }) => {
                 <span className="font-semibold">{p.name}</span>
                 {!isMicEnabled && <MicOffIcon className="size-3.5 text-error" />}
                 {!isCamEnabled && <VideoOffIcon className="size-3.5 text-error" />}
+                {isLocal && micError && (
+                  <span className="text-[10px] text-error font-medium bg-error/10 border border-error/20 px-1.5 py-0.5 rounded">
+                    Mic error: {micError === "NotFoundError" ? "No mic detected" : "Blocked"}
+                  </span>
+                )}
               </div>
             </div>
           );
@@ -346,7 +373,6 @@ const CallTimer = () => {
 };
 
 const CustomCallControls = () => {
-  const { useCall } = useCallStateHooks();
   const call = useCall();
   const { useMicrophoneState, useCameraState } = useCallStateHooks();
   const { isMuted: isMicMuted } = useMicrophoneState();
