@@ -142,17 +142,24 @@ const ChatPage = () => {
     };
   }, [chatClient, targetUserId, authUser]);
 
-  // WhatsApp-style Direct Calling
+  // Reverted to stable Link-Based Video Calling
   const handleVideoCall = async () => {
-    if (!videoClient || !authUser || !targetUserId) {
-      toast.error("Video calling client is not ready. Please try again.");
+    if (!channel || !authUser) {
+      toast.error("Chat channel is not ready.");
       return;
     }
 
     try {
       const callId = crypto.randomUUID();
-      // Navigate to CallPage in dialing (ringing) mode with recipient target ID
-      navigate(`/call/${callId}?ringing=true&targetUserId=${targetUserId}`);
+      const callLink = `${window.location.origin}/call/${callId}`;
+
+      // Send call invitation link as a message in the channel
+      await channel.sendMessage({
+        text: `📞 Join my video call: ${callLink}`,
+      });
+
+      // Navigate caller directly to the call screen
+      navigate(`/call/${callId}`);
     } catch (error) {
       console.error("Call initialization error:", error);
       toast.error("Could not initiate call");

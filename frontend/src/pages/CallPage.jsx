@@ -24,73 +24,8 @@ import {
   UsersIcon 
 } from "lucide-react";
 
-// Web Audio API Ringback Tone Generator
-const startRingbackTone = () => {
-  try {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return null;
-    const ctx = new AudioContext();
-    
-    const osc1 = ctx.createOscillator();
-    const osc2 = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-    
-    // US ringback tone frequencies: 440Hz + 480Hz
-    osc1.frequency.setValueAtTime(440, ctx.currentTime);
-    osc2.frequency.setValueAtTime(480, ctx.currentTime);
-    
-    osc1.connect(gainNode);
-    osc2.connect(gainNode);
-    gainNode.connect(ctx.destination);
-    
-    // Set a subtle volume
-    gainNode.gain.setValueAtTime(0.06, ctx.currentTime);
-    
-    osc1.start();
-    osc2.start();
-
-    if (ctx.state === "suspended") {
-      ctx.resume().catch(err => console.log("Failed to resume ctx initially:", err));
-    }
-
-    const resumeOnInteraction = () => {
-      if (ctx.state === "suspended") {
-        ctx.resume().catch(err => console.log("Failed to resume ctx on interaction:", err));
-      }
-    };
-    window.addEventListener("click", resumeOnInteraction);
-
-    // 2 seconds on, 4 seconds off ringing cadence
-    let ringInterval = setInterval(() => {
-      // fade out
-      gainNode.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 1.8);
-      
-      setTimeout(() => {
-        // fade back in
-        gainNode.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 0.2);
-      }, 2000);
-    }, 4000);
-
-    return () => {
-      clearInterval(ringInterval);
-      window.removeEventListener("click", resumeOnInteraction);
-      try {
-        osc1.stop();
-        osc2.stop();
-        ctx.close();
-      } catch (e) {}
-    };
-  } catch (error) {
-    console.error("Audio Context failed:", error);
-    return null;
-  }
-};
-
 const CallPage = () => {
   const { id: callId } = useParams();
-  const [searchParams] = useSearchParams();
-  const isRingingMode = searchParams.get("ringing") === "true";
-  const targetUserId = searchParams.get("targetUserId");
   const navigate = useNavigate();
 
   const { videoClient } = useStreamStore();
@@ -111,22 +46,8 @@ const CallPage = () => {
         console.log("Initializing Stream call:", callId);
         callInstance = videoClient.call("default", callId);
 
-        if (isRingingMode && targetUserId) {
-          // Caller side: create call and ring recipient
-          await callInstance.getOrCreate({
-            ring: true,
-            video: true,
-            data: {
-              members: [
-                { user_id: authUser._id },
-                { user_id: targetUserId }
-              ]
-            }
-          });
-        } else {
-          // Receiver side: join existing ringing call
-          await callInstance.join();
-        }
+        // Join the call directly, creating it if it doesn't exist
+        await callInstance.join({ create: true });
 
         if (!active) return;
 
@@ -160,7 +81,7 @@ const CallPage = () => {
         if (active) {
           console.error("Error joining/creating call:", error);
           toast.error("Could not connect to video call");
-          navigate("/");
+          navigate("/chat");
         }
       } finally {
         if (active) setIsConnecting(false);
@@ -175,7 +96,7 @@ const CallPage = () => {
         callInstance.leave().catch((err) => console.log("Call cleanup leave error:", err));
       }
     };
-  }, [videoClient, callId, isRingingMode, targetUserId, authUser, navigate]);
+  }, [videoClient, callId, authUser, navigate]);
 
   if (authLoading || isConnecting) return <PageLoader />;
 
@@ -184,7 +105,7 @@ const CallPage = () => {
       {videoClient && call ? (
         <StreamCall call={call}>
           <StreamTheme>
-            <CallContent isRingingMode={isRingingMode} cameraError={cameraError} micError={micError} />
+            <CallContent cameraError={cameraError} micError={micError} />
           </StreamTheme>
         </StreamCall>
       ) : (
@@ -199,15 +120,12 @@ const CallPage = () => {
   );
 };
 
-const CallContent = ({ isRingingMode, cameraError, micError }) => {
+const CallContent = ({ cameraError, micError }) => {
   const call = useCall();
-  const { useCallCallingState, useCallMembers, useParticipants } = useCallStateHooks();
+  const { useCallCallingState, useParticipants } = useCallStateHooks();
   const callingState = useCallCallingState();
-  const members = useCallMembers();
   const participants = useParticipants();
   const navigate = useNavigate();
-  const { authUser } = useAuthUser();
-  const [stopRinging, setStopRinging] = useState(null);
 
   const hadOtherParticipantRef = useRef(false);
 
@@ -217,31 +135,12 @@ const CallContent = ({ isRingingMode, cameraError, micError }) => {
       hadOtherParticipantRef.current = true;
     } else if (hadOtherParticipantRef.current && participants.length === 1) {
       toast.success("Other participant left the call");
-      if (stopRinging) stopRinging();
       if (call) {
         call.leave().catch((err) => console.log("Leave error:", err));
       }
       navigate("/chat");
     }
-  }, [participants, call, navigate, stopRinging]);
-
-  // Timeout ringing call after 30 seconds if unanswered
-  useEffect(() => {
-    let timeoutId;
-    if (callingState === CallingState.RINGING && isRingingMode) {
-      timeoutId = setTimeout(() => {
-        toast.error("No answer");
-        if (stopRinging) stopRinging();
-        if (call) {
-          call.leave().catch((err) => console.log("Leave error:", err));
-        }
-        navigate("/chat");
-      }, 30000);
-    }
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [callingState, isRingingMode, call, navigate, stopRinging]);
+  }, [participants, call, navigate]);
 
   // Auto-navigate away when call ends
   useEffect(() => {
@@ -250,32 +149,10 @@ const CallContent = ({ isRingingMode, cameraError, micError }) => {
       callingState === CallingState.REJECTED || 
       callingState === CallingState.OFFLINE
     ) {
-      if (stopRinging) stopRinging();
       toast.error("Call ended or declined");
       navigate("/chat");
     }
-  }, [callingState, navigate, stopRinging]);
-
-  // Handle dialing sound synthesis
-  useEffect(() => {
-    if (callingState === CallingState.RINGING && isRingingMode) {
-      const stop = startRingbackTone();
-      setStopRinging(() => stop);
-    } else {
-      if (stopRinging) {
-        stopRinging();
-        setStopRinging(null);
-      }
-    }
-    return () => {
-      if (stopRinging) stopRinging();
-    };
-  }, [callingState, isRingingMode]);
-
-  // Find other call member details
-  const recipientMember = members.find((m) => m.user.id !== authUser?._id);
-  const recipientName = recipientMember?.user?.name || "User";
-  const recipientImage = recipientMember?.user?.image || "https://api.dicebear.com/7.x/identicon/png?seed=default";
+  }, [callingState, navigate]);
 
   // Render loading state while connecting (JOINING)
   if (callingState === CallingState.JOINING) {
@@ -284,40 +161,6 @@ const CallContent = ({ isRingingMode, cameraError, micError }) => {
         <span className="loading loading-spinner loading-lg text-primary animate-spin" />
         <h2 className="text-xl font-bold">Connecting Call...</h2>
         <p className="text-sm opacity-60">Setting up secure media channels</p>
-      </div>
-    );
-  }
-
-  // Render dialing screen if not connected yet
-  if (callingState === CallingState.RINGING) {
-    return (
-      <div className="flex flex-col items-center justify-center space-y-8 animate-fade-in p-4 text-center">
-        <div className="relative flex items-center justify-center">
-          {/* pulsating visual rings */}
-          <div className="absolute size-44 bg-primary/20 rounded-full animate-ping opacity-60" />
-          <div className="absolute size-36 bg-success/15 rounded-full animate-pulse opacity-85" />
-          
-          <div className="avatar size-28 rounded-full overflow-hidden ring-4 ring-primary relative z-10">
-            <img src={recipientImage} alt={recipientName} className="object-cover w-full h-full" />
-          </div>
-        </div>
-
-        <div>
-          <h2 className="text-2xl font-bold">{recipientName}</h2>
-          <p className="text-sm opacity-60 mt-2 flex items-center justify-center gap-1.5 animate-pulse">
-            Ringing...
-          </p>
-        </div>
-
-        <button 
-          onClick={async () => {
-            if (stopRinging) stopRinging();
-            navigate("/chat");
-          }} 
-          className="btn btn-circle btn-error text-white btn-lg hover:scale-110 transition-transform shadow-xl mt-6"
-        >
-          <PhoneOffIcon className="size-6" />
-        </button>
       </div>
     );
   }
@@ -334,7 +177,7 @@ const CallContent = ({ isRingingMode, cameraError, micError }) => {
       </div>
 
       {/* Modern Participant Videos Grid */}
-      <div className="w-full max-w-5xl h-full flex flex-col md:grid md:grid-cols-2 gap-4 items-center justify-center py-16 overflow-y-auto">
+      <div className={`w-full max-w-5xl h-full flex flex-col ${participants.length > 1 ? "md:grid md:grid-cols-2" : "md:max-w-2xl md:mx-auto"} gap-4 items-center justify-center py-16 overflow-y-auto`}>
         {participants.map((p) => {
           const isMicEnabled = p.audioEnabled;
           const isCamEnabled = p.videoEnabled;

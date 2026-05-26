@@ -20,7 +20,6 @@ import Layout from "./components/Layout.jsx";
 import { useThemeStore } from "./store/useThemeStore.js";
 import { useStreamStore } from "./store/useStreamStore.js";
 import { getStreamToken } from "./lib/api.js";
-import IncomingCallModal from "./components/IncomingCallModal.jsx";
 
 const App = () => {
   const { isLoading, authUser } = useAuthUser();
@@ -56,7 +55,6 @@ const App = () => {
 
   const appContent = (
     <div className="h-screen" data-theme={theme}>
-      {videoClient && <IncomingCallModal />}
       <Routes>
         <Route
           path="/"
