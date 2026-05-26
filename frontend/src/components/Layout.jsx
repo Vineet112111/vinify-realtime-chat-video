@@ -1,9 +1,11 @@
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
+import EditProfileModal from "./EditProfileModal";
 
 const Layout = ({ children, showSidebar = false }) => {
   return (
     <div className="min-h-screen">
+      <EditProfileModal />
       <div className="flex">
         {showSidebar && <Sidebar />}
 

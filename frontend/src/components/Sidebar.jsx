@@ -1,11 +1,23 @@
 import { Link, useLocation } from "react-router";
 import useAuthUser from "../hooks/useAuthUser";
-import { BellIcon, HomeIcon, ShipWheelIcon, UsersIcon } from "lucide-react";
+import { BellIcon, HomeIcon, ShipWheelIcon, UsersIcon, SettingsIcon } from "lucide-react";
+import { useStreamStore } from "../store/useStreamStore";
+import { useQuery } from "@tanstack/react-query";
+import { getFriendRequests } from "../lib/api";
 
 const Sidebar = () => {
   const { authUser } = useAuthUser();
   const location = useLocation();
   const currentPath = location.pathname;
+  const { unreadMessageCount, setProfileModalOpen } = useStreamStore();
+
+  const { data: friendRequests } = useQuery({
+    queryKey: ["friendRequests"],
+    queryFn: getFriendRequests,
+    enabled: !!authUser,
+  });
+
+  const incomingCount = friendRequests?.incomingReqs?.length || 0;
 
   return (
     <aside className="w-64 bg-base-200 border-r border-base-300 hidden lg:flex flex-col h-screen sticky top-0">
@@ -31,27 +43,41 @@ const Sidebar = () => {
 
         <Link
           to="/friends"
-          className={`btn btn-ghost justify-start w-full gap-3 px-3 normal-case ${
+          className={`btn btn-ghost justify-between w-full px-3 normal-case ${
             currentPath === "/friends" ? "btn-active" : ""
           }`}
         >
-          <UsersIcon className="size-5 text-base-content opacity-70" />
-          <span>Friends</span>
+          <div className="flex items-center gap-3">
+            <UsersIcon className="size-5 text-base-content opacity-70" />
+            <span>Friends</span>
+          </div>
+          {unreadMessageCount > 0 && (
+            <span className="badge badge-primary badge-sm text-xs font-semibold">
+              {unreadMessageCount}
+            </span>
+          )}
         </Link>
 
         <Link
           to="/notifications"
-          className={`btn btn-ghost justify-start w-full gap-3 px-3 normal-case ${
+          className={`btn btn-ghost justify-between w-full px-3 normal-case ${
             currentPath === "/notifications" ? "btn-active" : ""
           }`}
         >
-          <BellIcon className="size-5 text-base-content opacity-70" />
-          <span>Notifications</span>
+          <div className="flex items-center gap-3">
+            <BellIcon className="size-5 text-base-content opacity-70" />
+            <span>Notifications</span>
+          </div>
+          {incomingCount > 0 && (
+            <span className="badge badge-secondary badge-sm text-xs font-semibold">
+              {incomingCount}
+            </span>
+          )}
         </Link>
       </nav>
 
       {/* USER PROFILE SECTION */}
-      <div className="p-4 border-t border-base-300 mt-auto">
+      <div className="p-4 border-t border-base-300 mt-auto flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="avatar">
             <div className="w-10 rounded-full">
@@ -59,13 +85,20 @@ const Sidebar = () => {
             </div>
           </div>
           <div className="flex-1">
-            <p className="font-semibold text-sm">{authUser?.fullName}</p>
+            <p className="font-semibold text-sm truncate max-w-[110px]">{authUser?.fullName}</p>
             <p className="text-xs text-success flex items-center gap-1">
               <span className="size-2 rounded-full bg-success inline-block" />
               Online
             </p>
           </div>
         </div>
+        <button 
+          onClick={() => setProfileModalOpen(true)}
+          className="btn btn-ghost btn-circle btn-sm opacity-70 hover:opacity-100"
+          title="Edit Profile & Settings"
+        >
+          <SettingsIcon className="size-4" />
+        </button>
       </div>
     </aside>
   );

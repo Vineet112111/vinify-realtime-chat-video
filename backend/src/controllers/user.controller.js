@@ -1,5 +1,6 @@
 import User from "../models/User.js";
 import FriendRequest from "../models/FriendRequest.js";
+import { upsertStreamUser } from "../lib/stream.js";
 
 export async function getRecommendedUsers(req, res) {
   try {
@@ -72,6 +73,20 @@ export async function sendFriendRequest(req, res) {
       recipient: recipientId,
     });
 
+    // Send real-time event to recipient via Stream Chat
+    try {
+      const { StreamChat } = await import("stream-chat");
+      const streamClient = StreamChat.getInstance(process.env.STEAM_API_KEY, process.env.STEAM_API_SECRET);
+      await streamClient.sendUserCustomEvent(recipientId, {
+        type: "friend_request_received",
+        payload: {
+          senderId: myId,
+        },
+      });
+    } catch (err) {
+      console.error("Error sending real-time friend request received event:", err);
+    }
+
     res.status(201).json(friendRequest);
   } catch (error) {
     console.error("Error in sendFriendRequest controller", error.message);
@@ -106,6 +121,20 @@ export async function acceptFriendRequest(req, res) {
     await User.findByIdAndUpdate(friendRequest.recipient, {
       $addToSet: { friends: friendRequest.sender },
     });
+
+    // Send real-time event to the sender that request was accepted
+    try {
+      const { StreamChat } = await import("stream-chat");
+      const streamClient = StreamChat.getInstance(process.env.STEAM_API_KEY, process.env.STEAM_API_SECRET);
+      await streamClient.sendUserCustomEvent(friendRequest.sender.toString(), {
+        type: "friend_request_accepted",
+        payload: {
+          recipientId: req.user.id,
+        },
+      });
+    } catch (err) {
+      console.error("Error sending real-time friend request accepted event:", err);
+    }
 
     res.status(200).json({ message: "Friend request accepted" });
   } catch (error) {
@@ -143,6 +172,42 @@ export async function getOutgoingFriendReqs(req, res) {
     res.status(200).json(outgoingRequests);
   } catch (error) {
     console.log("Error in getOutgoingFriendReqs controller", error.message);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+}
+
+export async function updateProfile(req, res) {
+  try {
+    const userId = req.user.id;
+    const { fullName, username, bio, profilePic } = req.body;
+
+    const updateData = {};
+    if (fullName !== undefined) updateData.fullName = fullName;
+    if (username !== undefined) updateData.username = username;
+    if (bio !== undefined) updateData.bio = bio;
+    if (profilePic !== undefined) updateData.profilePic = profilePic;
+
+    const updatedUser = await User.findByIdAndUpdate(userId, updateData, { new: true });
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Sync with Stream
+    try {
+      await upsertStreamUser({
+        id: updatedUser._id.toString(),
+        name: updatedUser.fullName,
+        image: updatedUser.profilePic || "",
+      });
+      console.log(`Stream user updated in profile settings for ${updatedUser.fullName}`);
+    } catch (err) {
+      console.error("Stream sync error in updateProfile:", err);
+    }
+
+    res.status(200).json({ success: true, user: updatedUser });
+  } catch (error) {
+    console.error("Error in updateProfile controller", error.message);
     res.status(500).json({ message: "Internal Server Error" });
   }
 }
