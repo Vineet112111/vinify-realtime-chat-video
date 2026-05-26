@@ -200,6 +200,7 @@ const CallPage = () => {
 };
 
 const CallContent = ({ isRingingMode, cameraError, micError }) => {
+  const call = useCall();
   const { useCallCallingState, useCallMembers, useParticipants } = useCallStateHooks();
   const callingState = useCallCallingState();
   const members = useCallMembers();
@@ -207,6 +208,40 @@ const CallContent = ({ isRingingMode, cameraError, micError }) => {
   const navigate = useNavigate();
   const { authUser } = useAuthUser();
   const [stopRinging, setStopRinging] = useState(null);
+
+  const hadOtherParticipantRef = useRef(false);
+
+  // Monitor participants count to auto-disconnect if the remote user leaves
+  useEffect(() => {
+    if (participants.length > 1) {
+      hadOtherParticipantRef.current = true;
+    } else if (hadOtherParticipantRef.current && participants.length === 1) {
+      toast.success("Other participant left the call");
+      if (stopRinging) stopRinging();
+      if (call) {
+        call.leave().catch((err) => console.log("Leave error:", err));
+      }
+      navigate("/chat");
+    }
+  }, [participants, call, navigate, stopRinging]);
+
+  // Timeout ringing call after 30 seconds if unanswered
+  useEffect(() => {
+    let timeoutId;
+    if (callingState === CallingState.RINGING && isRingingMode) {
+      timeoutId = setTimeout(() => {
+        toast.error("No answer");
+        if (stopRinging) stopRinging();
+        if (call) {
+          call.leave().catch((err) => console.log("Leave error:", err));
+        }
+        navigate("/chat");
+      }, 30000);
+    }
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [callingState, isRingingMode, call, navigate, stopRinging]);
 
   // Auto-navigate away when call ends
   useEffect(() => {
@@ -380,11 +415,29 @@ const CustomCallControls = () => {
   const navigate = useNavigate();
 
   const toggleMic = async () => {
-    if (call) await call.microphone.toggle();
+    if (!call) return;
+    try {
+      if (isMicMuted) {
+        await call.microphone.unmute();
+      } else {
+        await call.microphone.mute();
+      }
+    } catch (err) {
+      console.error("Error toggling microphone:", err);
+    }
   };
 
   const toggleCam = async () => {
-    if (call) await call.camera.toggle();
+    if (!call) return;
+    try {
+      if (isCamMuted) {
+        await call.camera.unmute();
+      } else {
+        await call.camera.mute();
+      }
+    } catch (err) {
+      console.error("Error toggling camera:", err);
+    }
   };
 
   const handleHangup = async () => {

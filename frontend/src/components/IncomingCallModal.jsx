@@ -162,11 +162,13 @@ const IncomingCallModal = () => {
       <div className="bg-base-200 border border-base-content/15 rounded-2xl w-full max-w-sm p-6 text-center shadow-2xl animate-bounce-short">
         <div className="flex flex-col items-center gap-5">
           {/* Pulsating Avatar */}
-          <div className="relative">
-            <div className="avatar size-24 rounded-full ring-4 ring-success ring-offset-base-100 ring-offset-4 overflow-hidden animate-pulse">
-              <img src={callerImage} alt={callerName} className="object-cover w-full h-full" />
+          <div className="relative flex justify-center">
+            <div className="avatar">
+              <div className="w-24 h-24 rounded-full ring-4 ring-success ring-offset-base-100 ring-offset-4 overflow-hidden animate-pulse">
+                <img src={callerImage} alt={callerName} className="object-cover w-full h-full" />
+              </div>
             </div>
-            <span className="absolute bottom-0 right-0 size-6 bg-success rounded-full border-4 border-base-200 flex items-center justify-center">
+            <span className="absolute bottom-0 right-[35%] size-6 bg-success rounded-full border-4 border-base-200 flex items-center justify-center">
               <span className="size-2 bg-white rounded-full animate-ping" />
             </span>
           </div>
