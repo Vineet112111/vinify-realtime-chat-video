@@ -5,6 +5,10 @@ import toast from "react-hot-toast";
 
 const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
 
+if (!STREAM_API_KEY) {
+  console.error("[StreamStore] CRITICAL: VITE_STREAM_API_KEY is not set. Video calls and chat will fail.");
+}
+
 export const useStreamStore = create((set, get) => ({
   chatClient: null,
   videoClient: null,
@@ -23,22 +27,46 @@ export const useStreamStore = create((set, get) => ({
   },
 
   initStream: async (authUser, token, queryClient) => {
-    if (!authUser || !token) return;
+    if (!authUser || !token) {
+      console.warn("[StreamStore] initStream called without authUser or token — skipping.");
+      return;
+    }
 
-    // Avoid duplicate initialization
+    if (!STREAM_API_KEY) {
+      console.error("[StreamStore] Cannot init Stream — API key missing.");
+      return;
+    }
+
+    // Avoid duplicate initialization for the same user
     if (get().chatClient && get().chatClient.userID === authUser._id) {
+      console.log("[StreamStore] Stream already initialized for user:", authUser._id);
       set({ queryClientRef: queryClient });
       return;
     }
 
     try {
-      console.log("Initializing global Stream clients...");
+      console.log("[StreamStore] Initializing Stream clients for user:", authUser._id, authUser.fullName);
+
+      // Disconnect any existing video client before creating a new one
+      const existingVideoClient = get().videoClient;
+      if (existingVideoClient) {
+        console.log("[StreamStore] Disconnecting existing videoClient before re-init...");
+        try {
+          await existingVideoClient.disconnectUser();
+        } catch (e) {
+          console.warn("[StreamStore] Error disconnecting old videoClient:", e.message);
+        }
+      }
+
+      // Initialize Stream Chat
       const chatClient = StreamChat.getInstance(STREAM_API_KEY);
 
       if (chatClient.wsConnection?.connection_id) {
+        console.log("[StreamStore] Disconnecting existing chat connection...");
         await chatClient.disconnectUser();
       }
 
+      console.log("[StreamStore] Connecting chat user...");
       await chatClient.connectUser(
         {
           id: authUser._id,
@@ -47,7 +75,10 @@ export const useStreamStore = create((set, get) => ({
         },
         token
       );
+      console.log("[StreamStore] Chat user connected:", authUser._id);
 
+      // Initialize Stream Video Client
+      console.log("[StreamStore] Creating StreamVideoClient...");
       const videoClient = new StreamVideoClient({
         apiKey: STREAM_API_KEY,
         user: {
@@ -57,6 +88,7 @@ export const useStreamStore = create((set, get) => ({
         },
         token,
       });
+      console.log("[StreamStore] StreamVideoClient created successfully.");
 
       set({
         chatClient,
@@ -71,7 +103,7 @@ export const useStreamStore = create((set, get) => ({
 
         // Custom events for friend requests
         if (event.type === "friend_request_received" || event.type === "friend_request_accepted") {
-          console.log("Real-time friend request event received:", event);
+          console.log("[StreamStore] Real-time friend request event:", event.type);
           if (queryClient) {
             queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
             queryClient.invalidateQueries({ queryKey: ["friends"] });
@@ -121,18 +153,31 @@ export const useStreamStore = create((set, get) => ({
       });
 
     } catch (error) {
-      console.error("Error in initStream:", error);
+      console.error("[StreamStore] Error in initStream:", error);
+      toast.error("Failed to initialize messaging/video services. Please refresh.");
     }
   },
 
   disconnectStream: async () => {
     const { chatClient, videoClient } = get();
+    console.log("[StreamStore] Disconnecting Stream services...");
     if (chatClient) {
-      await chatClient.disconnectUser();
+      try {
+        await chatClient.disconnectUser();
+        console.log("[StreamStore] Chat disconnected.");
+      } catch (e) {
+        console.warn("[StreamStore] Error disconnecting chat:", e.message);
+      }
     }
     if (videoClient) {
-      await videoClient.disconnectUser();
+      try {
+        await videoClient.disconnectUser();
+        console.log("[StreamStore] Video disconnected.");
+      } catch (e) {
+        console.warn("[StreamStore] Error disconnecting video:", e.message);
+      }
     }
     set({ chatClient: null, videoClient: null, unreadMessageCount: 0, queryClientRef: null });
   }
 }));
+

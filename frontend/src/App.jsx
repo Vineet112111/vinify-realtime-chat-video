@@ -30,30 +30,36 @@ const App = () => {
   const isAuthenticated = Boolean(authUser);
   const isOnboarded = authUser?.isOnboarded;
 
-  const { data: tokenData } = useQuery({
+  const { data: tokenData, isError: tokenError } = useQuery({
     queryKey: ["streamToken"],
     queryFn: getStreamToken,
     enabled: !!authUser && authUser.isOnboarded,
+    retry: 2,
   });
 
   useEffect(() => {
     if (authUser && authUser.isOnboarded && tokenData?.token) {
+      console.log("[App] Stream token received — initializing Stream services.");
       initStream(authUser, tokenData.token, queryClient);
 
       // Request notification permission proactively
       if ("Notification" in window && Notification.permission === "default") {
         Notification.requestPermission().then((permission) => {
-          console.log("Notification permission response:", permission);
+          console.log("[App] Notification permission response:", permission);
         });
       }
     } else if (!authUser) {
       disconnectStream();
     }
-  }, [authUser, tokenData, initStream, disconnectStream, queryClient]);
+
+    if (tokenError) {
+      console.error("[App] Failed to fetch Stream token — video calls and chat may not work.");
+    }
+  }, [authUser, tokenData, tokenError, initStream, disconnectStream, queryClient]);
 
   if (isLoading) return <PageLoader />;
 
-  const appContent = (
+  const routes = (
     <div className="h-screen" data-theme={theme}>
       <Routes>
         <Route
@@ -160,10 +166,13 @@ const App = () => {
     </div>
   );
 
+  // Always wrap with StreamVideo provider when the video client is ready.
+  // This is placed OUTSIDE the conditional to prevent the provider tree from
+  // being unmounted and remounted, which would cause all call hooks to lose context.
   if (videoClient) {
-    return <StreamVideo client={videoClient}>{appContent}</StreamVideo>;
+    return <StreamVideo client={videoClient}>{routes}</StreamVideo>;
   }
 
-  return appContent;
+  return routes;
 };
 export default App;
